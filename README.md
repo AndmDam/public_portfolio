@@ -1,5 +1,0 @@
-### Portafolio Público Mario Damián Andrango
-
-Portafolio público, Mario Damián Andrango Torres. Físico especializado en física aplicada con áreas de enfoquemultidisciplinario, incluyendo pogramación, mecatrónica/electrónica, propiedades de materiales, electricidad media y baja tensión. Poseo facilidad de adaptación tanto a trabajos como entornos así mismo a tecnologías noveles o de nicho. Poseo basta experiencia utilizando software de diseño 3D y 2D, junto con experiencia manejando herramientas de prototipado como creación de circuitos impresos (PCB), impresion 3D, corte láser, mecanizado CNC, automatización con microcontroladores y programación en general. Fabricación de dispositivos electromecánicos aplicándo análisis de diseño y optimización de componentes mecánicos y electrónicos. Utilizo electrónica digital y analógica, trabajo creando sensores y adaptando electrónica fomentando la reutilización de la misma. Conozco a profunidad Ubuntu basado en Linux trabajo en ciencia de datos, paralalizo, utilizo conexiones ssh. 
-
-Portafolio público. General. 

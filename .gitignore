@@ -1,0 +1,29 @@
+# Dependencias
+node_modules/
+
+# Salida de compilación de Astro
+dist/
+.astro/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Variables de entorno (crítico si añades IDs privados o tokens en el futuro)
+.env
+.env.*
+!.env.example
+
+# Archivos temporales de Ubuntu / Linux y editores
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.swp
+*.swo

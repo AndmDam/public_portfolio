@@ -1,0 +1,54 @@
+---
+import '../styles/global.css';
+import Analytics from '../components/Analytics.astro';
+
+interface Props {
+    title: string;
+    description?: string;
+}
+
+const { title, description = "Portafolio de Física aplicada, Hardware y Software" } = Astro.props;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+
+<!doctype html>
+<html lang="es">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <meta name="description" content={description} />
+        <link rel="icon" type="image/svg+xml" href={`${base}/favicon.svg`} />
+        <title>{title} | Damián Andrango</title>
+        <Analytics />
+    </head>
+    <body>
+        <header>
+            <nav>
+                <a href={`${base}/`} class="brand">Damián Andrango</a>
+                <div class="nav-links">
+                    <a
+                        href={`${base}/assets/CV_Damian_Andrango.pdf`}
+                        download="CV_Damian_Andrango.pdf"
+                        class="btn-cv"
+                        data-umami-event="descargar-cv"
+                    >
+                        Descargar CV (PDF)
+                    </a>
+                    <a href={`${base}/#proyectos`}>Proyectos</a>
+                    <a href={`${base}/#ecosistema-tecnologico`}>Tecnologías</a>
+                    <a href={`${base}/certificaciones`}>Certificaciones</a>
+                    <a href="https://linkedin.com/in/mdamian-andrango" target="_blank" rel="noopener noreferrer">LinkedIn</a>
+                    <a href="https://github.com/andmdam" target="_blank" rel="noopener noreferrer">GitHub</a>
+                </div>
+            </nav>
+        </header>
+
+        <main>
+            <slot />
+        </main>
+
+        <footer>
+            <p>© {new Date().getFullYear()} Damián Andrango · Portafolio Digital | Técnico</p>
+        </footer>
+    </body>
+</html>

@@ -1,0 +1,11 @@
+---
+// src/components/Analytics.astro
+const isProd = import.meta.env.PROD;
+---
+{isProd && (
+    <script 
+        defer 
+        src="https://cloud.umami.is/script.js" 
+        data-website-id="c9c05260-f477-4e84-ba90-64a17379a9a1"
+    ></script>
+)}

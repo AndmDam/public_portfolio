@@ -1,0 +1,618 @@
+---
+import type { CollectionEntry } from 'astro:content';
+import BaseLayout from './BaseLayout.astro';
+
+interface Props {
+  project: CollectionEntry<'projects'>;
+}
+
+const { project } = Astro.props;
+const {
+  title,
+  tagline,
+  category,
+  date,
+  heroImage,
+  gallery = [],
+  tools,
+  specs,
+  githubUrl,
+  docUrl,
+  cadUrl,
+} = project.data;
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const resolvedHero = heroImage.startsWith('http')
+  ? heroImage
+  : `${base}/${heroImage.replace(/^\//, '')}`;
+
+const resolvedGallery = gallery.map((item) => ({
+  src: item.src.startsWith('http')
+    ? item.src
+    : `${base}/${item.src.replace(/^\//, '')}`,
+  caption: item.caption ?? '',
+}));
+
+const specEntries = specs ? Object.entries(specs) : [];
+---
+
+<BaseLayout title={title} description={tagline}>
+  <article class="project-detail">
+    <nav class="breadcrumb">
+      <a href={`${base}/`} class="back-link">← Volver al mapa de proyectos</a>
+    </nav>
+
+    <header class="project-header">
+      <div class="meta-row">
+        <span class="category-badge">{category}</span>
+        <time datetime={date.toISOString()}>{date.toISOString().slice(0, 10)}</time>
+      </div>
+
+      <h1>{title}</h1>
+      <p class="tagline">{tagline}</p>
+
+      <div class="tools-list">
+        {tools.map((tool) => (
+          <span class="tool-tag">{tool}</span>
+        ))}
+      </div>
+
+      {(githubUrl || docUrl || cadUrl || resolvedGallery.length > 0) && (
+        <div class="action-links">
+          {githubUrl && (
+            <a
+              href={githubUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="btn-action primary"
+              data-umami-event="proyecto-click-github"
+              data-umami-event-proyecto={title}
+            >
+              Repositorio GitHub
+            </a>
+          )}
+          {resolvedGallery.length > 0 && (
+            <button
+              type="button"
+              id="open-gallery-btn"
+              class="btn-action"
+              data-umami-event="proyecto-abrir-galeria"
+              data-umami-event-proyecto={title}
+            >
+              Galería Técnica ({resolvedGallery.length})
+            </button>
+          )}
+          {cadUrl && (
+            <a
+              href={cadUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="btn-action"
+              data-umami-event="proyecto-click-cad"
+              data-umami-event-proyecto={title}
+            >
+              Modelos CAD
+            </a>
+          )}
+          {docUrl && (
+            <a
+              href={docUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="btn-action"
+              data-umami-event="proyecto-click-doc"
+              data-umami-event-proyecto={title}
+            >
+              Documentación Técnica
+            </a>
+          )}
+        </div>
+      )}
+    </header>
+
+    <figure class="hero-media">
+      <img
+        src={resolvedHero}
+        alt={`Vista principal de ${title}`}
+        onerror="this.parentElement.style.display='none'"
+      />
+    </figure>
+
+    {specEntries.length > 0 && (
+      <section class="specs-box">
+        <h2>Especificaciones Técnicas</h2>
+        <dl class="specs-grid">
+          {specEntries.map(([key, value]) => (
+            <div class="spec-item">
+              <dt>{key}</dt>
+              <dd>{value}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+    )}
+
+    <section class="markdown-body">
+      <slot />
+    </section>
+  </article>
+
+  {resolvedGallery.length > 0 && (
+    <dialog
+      id="gallery-modal"
+      class="gallery-modal"
+      data-gallery={JSON.stringify(resolvedGallery)}
+    >
+      <div class="modal-content">
+        <header class="modal-header">
+          <span id="gallery-counter" class="gallery-counter">1 / {resolvedGallery.length}</span>
+          <button type="button" id="close-gallery-btn" class="close-modal" aria-label="Cerrar galería">
+            &times;
+          </button>
+        </header>
+
+        <div class="modal-stage">
+          <button type="button" id="prev-img-btn" class="nav-arrow" aria-label="Imagen anterior">
+            &#8249;
+          </button>
+
+          <figure class="modal-figure">
+            <img id="gallery-active-img" src={resolvedGallery[0].src} alt={resolvedGallery[0].caption || title} />
+            <figcaption id="gallery-caption">{resolvedGallery[0].caption}</figcaption>
+          </figure>
+
+          <button type="button" id="next-img-btn" class="nav-arrow" aria-label="Imagen siguiente">
+            &#8250;
+          </button>
+        </div>
+
+        {resolvedGallery.length > 1 && (
+          <div class="modal-thumbs" id="gallery-thumbs">
+            {resolvedGallery.map((item, idx) => (
+              <button
+                type="button"
+                class={`thumb-btn ${idx === 0 ? 'active' : ''}`}
+                data-index={idx}
+                aria-label={`Ver imagen ${idx + 1}`}
+              >
+                <img src={item.src} alt="" loading="lazy" />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </dialog>
+  )}
+</BaseLayout>
+
+<script>
+  interface GalleryItem {
+    src: string;
+    caption: string;
+  }
+
+  const openBtn = document.getElementById('open-gallery-btn');
+  const modal = document.getElementById('gallery-modal') as HTMLDialogElement | null;
+
+  if (openBtn && modal && modal.dataset.gallery) {
+    const items: GalleryItem[] = JSON.parse(modal.dataset.gallery);
+    const closeBtn = document.getElementById('close-gallery-btn');
+    const prevBtn = document.getElementById('prev-img-btn');
+    const nextBtn = document.getElementById('next-img-btn');
+    const activeImg = document.getElementById('gallery-active-img') as HTMLImageElement | null;
+    const captionEl = document.getElementById('gallery-caption');
+    const counterEl = document.getElementById('gallery-counter');
+    const thumbBtns = document.querySelectorAll<HTMLButtonElement>('.thumb-btn');
+
+    let currentIndex = 0;
+
+    const updateSlide = (index: number) => {
+      currentIndex = (index + items.length) % items.length;
+      const current = items[currentIndex];
+
+      if (activeImg) {
+        activeImg.src = current.src;
+        activeImg.alt = current.caption || `Imagen ${currentIndex + 1}`;
+      }
+      if (captionEl) {
+        captionEl.textContent = current.caption;
+        captionEl.style.display = current.caption ? 'block' : 'none';
+      }
+      if (counterEl) {
+        counterEl.textContent = `${currentIndex + 1} / ${items.length}`;
+      }
+
+      thumbBtns.forEach((btn, i) => {
+        btn.classList.toggle('active', i === currentIndex);
+      });
+    };
+
+    openBtn.addEventListener('click', () => {
+      updateSlide(0);
+      modal.showModal();
+    });
+
+    closeBtn?.addEventListener('click', () => modal.close());
+    prevBtn?.addEventListener('click', () => updateSlide(currentIndex - 1));
+    nextBtn?.addEventListener('click', () => updateSlide(currentIndex + 1));
+
+    thumbBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const idx = Number(btn.dataset.index ?? 0);
+        updateSlide(idx);
+      });
+    });
+
+    modal.addEventListener('click', (event) => {
+      if (event.target === modal) {
+        modal.close();
+      }
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (!modal.open) return;
+      if (event.key === 'ArrowLeft') updateSlide(currentIndex - 1);
+      if (event.key === 'ArrowRight') updateSlide(currentIndex + 1);
+    });
+  }
+</script>
+
+<style>
+  .project-detail {
+    max-width: 860px;
+    margin: 0 auto;
+  }
+
+  .breadcrumb {
+    margin-bottom: 1.5rem;
+  }
+
+  .back-link {
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 500;
+  }
+
+  .back-link:hover {
+    text-decoration: underline;
+  }
+
+  .project-header {
+    padding-bottom: 2rem;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 2rem;
+  }
+
+  .meta-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+  }
+
+  .category-badge {
+    color: var(--accent);
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+  }
+
+  .project-header h1 {
+    font-size: 2.2rem;
+    line-height: 1.2;
+    margin-bottom: 0.75rem;
+  }
+
+  .tagline {
+    font-size: 1.1rem;
+    color: var(--text-secondary);
+    margin-bottom: 1.25rem;
+  }
+
+  .tools-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .tool-tag {
+    background: rgba(56, 189, 248, 0.12);
+    color: var(--accent);
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    padding: 0.25rem 0.65rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+  }
+
+  .action-links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .btn-action {
+    text-decoration: none;
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    padding: 0.55rem 1.1rem;
+    border-radius: 5px;
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    background: var(--surface-color);
+    cursor: pointer;
+    transition: border-color 0.2s, opacity 0.2s;
+  }
+
+  .btn-action.primary {
+    background: var(--accent);
+    color: #090d16;
+    border-color: var(--accent);
+  }
+
+  .btn-action:hover {
+    opacity: 0.9;
+    border-color: var(--accent);
+  }
+
+  .hero-media {
+    width: 100%;
+    margin: 0 0 2rem 0;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  .hero-media img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+
+  .specs-box {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin-bottom: 2.5rem;
+  }
+
+  .specs-box h2 {
+    font-size: 1.1rem;
+    color: var(--accent);
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .specs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+  }
+
+  .spec-item {
+    border-left: 2px solid var(--accent);
+    padding-left: 0.75rem;
+  }
+
+  .spec-item dt {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+  }
+
+  .spec-item dd {
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-top: 0.15rem;
+  }
+
+  /* Estilos de la ventana modal de galería */
+  .gallery-modal {
+    margin: auto;
+    padding: 0;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--surface-color);
+    color: var(--text-primary);
+    width: min(92vw, 940px);
+    max-height: 90vh;
+    overflow: hidden;
+  }
+
+  .gallery-modal::backdrop {
+    background: rgba(5, 8, 17, 0.85);
+    backdrop-filter: blur(4px);
+  }
+
+  .modal-content {
+    display: flex;
+    flex-direction: column;
+    padding: 1.25rem;
+    gap: 1rem;
+  }
+
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.75rem;
+  }
+
+  .gallery-counter {
+    font-size: 0.85rem;
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .close-modal {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1.75rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 0.35rem;
+  }
+
+  .close-modal:hover {
+    color: var(--text-primary);
+  }
+
+  .modal-stage {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .nav-arrow {
+    background: rgba(15, 23, 42, 0.75);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    font-size: 1.5rem;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.2s, color 0.2s;
+  }
+
+  .nav-arrow:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  .modal-figure {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.65rem;
+  }
+
+  .modal-figure img {
+    max-width: 100%;
+    max-height: 60vh;
+    object-fit: contain;
+    border-radius: 6px;
+    background: #090d16;
+  }
+
+  .modal-figure figcaption {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+    text-align: center;
+    max-width: 68ch;
+  }
+
+  .modal-thumbs {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding-top: 0.5rem;
+    border-top: 1px solid var(--border-color);
+  }
+
+  .thumb-btn {
+    padding: 0;
+    width: 64px;
+    height: 44px;
+    border: 2px solid transparent;
+    border-radius: 4px;
+    overflow: hidden;
+    background: #090d16;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.2s, border-color 0.2s;
+  }
+
+  .thumb-btn.active,
+  .thumb-btn:hover {
+    opacity: 1;
+    border-color: var(--accent);
+  }
+
+  .thumb-btn img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  /* Estilos para el contenido Markdown compilado en <slot /> */
+  .markdown-body :global(h2) {
+    font-size: 1.5rem;
+    color: var(--text-primary);
+    margin-top: 2.25rem;
+    margin-bottom: 0.85rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .markdown-body :global(h3) {
+    font-size: 1.2rem;
+    color: var(--accent);
+    margin-top: 1.5rem;
+    margin-bottom: 0.6rem;
+  }
+
+  .markdown-body :global(p) {
+    margin-bottom: 1rem;
+    color: var(--text-secondary);
+  }
+
+  .markdown-body :global(ul),
+  .markdown-body :global(ol) {
+    margin-bottom: 1.25rem;
+    padding-left: 1.5rem;
+    color: var(--text-secondary);
+  }
+
+  .markdown-body :global(li) {
+    margin-bottom: 0.45rem;
+  }
+
+  .markdown-body :global(strong) {
+    color: var(--text-primary);
+  }
+
+  .markdown-body :global(code) {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.88em;
+    color: var(--accent);
+  }
+
+  .markdown-body :global(img) {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    margin: 1.5rem auto;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+  }
+
+  .markdown-body :global(img + em) {
+    display: block;
+    text-align: center;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-top: -1rem;
+    margin-bottom: 1.5rem;
+  }
+</style>

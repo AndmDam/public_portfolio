@@ -1,0 +1,435 @@
+---
+import { getCollection } from 'astro:content';
+
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const projects = await getCollection('projects');
+
+interface RawNode {
+  id: string;
+  label: string;
+  type: 'tech' | 'project';
+  url?: string;
+  tagline?: string;
+  heroImage?: string;
+  category?: string;
+}
+
+interface RawLink {
+  source: string;
+  target: string;
+}
+
+const nodesMap = new Map<string, RawNode>();
+const links: RawLink[] = [];
+
+for (const project of projects) {
+  const projectId = `proj_${project.id}`;
+  nodesMap.set(projectId, {
+    id: projectId,
+    label: project.data.title,
+    type: 'project',
+    url: `${base}/projects/${project.id}`,
+    tagline: project.data.tagline,
+    heroImage: project.data.heroImage,
+    category: project.data.category,
+  });
+
+  for (const tool of project.data.tools) {
+    const techId = `tech_${tool}`;
+    if (!nodesMap.has(techId)) {
+      nodesMap.set(techId, {
+        id: techId,
+        label: tool,
+        type: 'tech',
+      });
+    }
+    links.push({
+      source: techId,
+      target: projectId,
+    });
+  }
+}
+
+const graphData = {
+  nodes: Array.from(nodesMap.values()),
+  links,
+};
+
+
+---
+
+<div id="graph-container" data-graph={JSON.stringify(graphData)}>
+  <svg id="tech-network"></svg>
+  <aside id="tech-panel" hidden>
+    <div class="panel-header">
+      <h3 id="panel-title"></h3>
+      <button id="close-panel" type="button">×</button>
+    </div>
+    <ul id="panel-list"></ul>
+  </aside>
+</div>
+
+<script>
+  import * as d3 from 'd3';
+
+  interface GraphNode extends d3.SimulationNodeDatum {
+    id: string;
+    label: string;
+    type: 'tech' | 'project';
+    url?: string;
+    tagline?: string;
+    heroImage?: string;
+    category?: string;
+  }
+
+  interface GraphLink extends d3.SimulationLinkDatum<GraphNode> {
+    source: string | GraphNode;
+    target: string | GraphNode;
+  }
+
+  function initTechGraph() {
+    const container = document.getElementById('graph-container');
+    if (!container || container.dataset.initialized === 'true') return;
+    const rawData = container.dataset.graph;
+    if (!rawData) return;
+
+    container.dataset.initialized = 'true';
+    const data: { nodes: GraphNode[]; links: GraphLink[] } = JSON.parse(rawData);
+    const width = container.clientWidth || 960;
+    const height = 560;
+
+    const padX = 65;
+    const padTop = 30;
+    const padBottom = 45;
+
+    const clampX = (x: number) => Math.max(padX, Math.min(width - padX, x));
+    const clampY = (y: number) => Math.max(padTop, Math.min(height - padBottom, y));
+
+    const svg = d3.select<SVGSVGElement, unknown>('#tech-network')
+      .attr('viewBox', `0 0 ${width} ${height}`)
+      .attr('width', '100%')
+      .attr('height', height);
+
+    
+
+    const simulation = d3.forceSimulation<GraphNode>(data.nodes)
+      .force('link', d3.forceLink<GraphNode, GraphLink>(data.links).id(d => d.id).distance(130))
+      .force('charge', d3.forceManyBody().strength(-340))
+      .force('center', d3.forceCenter(width / 2, height / 2))
+      .force('x', d3.forceX(width / 2).strength(0.06))
+      .force('y', d3.forceY(height / 2).strength(0.08))
+      .force('collide', d3.forceCollide<GraphNode>().radius(d => (d.type === 'tech' ? 36 : 28)));
+
+    const link = svg.append('g')
+      .selectAll('line')
+      .data(data.links)
+      .join('line')
+      .attr('class', 'graph-link');
+
+    const nodeGroup = svg.append('g')
+      .selectAll<SVGGElement, GraphNode>('g')
+      .data(data.nodes)
+      .join('g')
+      .attr('class', d => `graph-node ${d.type}`)
+      .call(
+        d3.drag<SVGGElement, GraphNode>()
+          .on('start', (event, d) => {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+          })
+          .on('drag', (event, d) => {
+            d.fx = clampX(event.x);
+            d.fy = clampY(event.y);
+          })
+          .on('end', (event, d) => {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+          })
+      );
+
+    nodeGroup.append('circle')
+      .attr('r', d => (d.type === 'tech' ? 18 : 13));
+
+    nodeGroup.append('text')
+      .text(d => d.label)
+      .attr('dy', d => (d.type === 'tech' ? 32 : 26))
+      .attr('text-anchor', 'middle');
+
+    const getId = (endpoint: string | GraphNode) =>
+      typeof endpoint === 'object' ? endpoint.id : endpoint;
+
+    nodeGroup.on('mouseover', (_, d) => {
+      const directNeighbors = new Set<string>();
+      const secondaryTechs = new Set<string>();
+
+      // Primer grado: conexiones directas
+      data.links.forEach(l => {
+        const s = getId(l.source);
+        const t = getId(l.target);
+        if (s === d.id) directNeighbors.add(t);
+        if (t === d.id) directNeighbors.add(s);
+      });
+
+      // Segundo grado: otras tecnologías usadas en los proyectos conectados
+      if (d.type === 'tech') {
+        data.links.forEach(l => {
+          const s = getId(l.source);
+          const t = getId(l.target);
+          if (directNeighbors.has(t) && s !== d.id) secondaryTechs.add(s);
+          if (directNeighbors.has(s) && t !== d.id) secondaryTechs.add(t);
+        });
+      }
+
+      nodeGroup
+        .classed('is-hovered', n => n.id === d.id)
+        .classed('is-neighbor', n => directNeighbors.has(n.id))
+        .classed('is-secondary', n => secondaryTechs.has(n.id))
+        .classed('is-dimmed', n => n.id !== d.id && !directNeighbors.has(n.id) && !secondaryTechs.has(n.id));
+
+      link
+        .classed('is-active', l => {
+          const s = getId(l.source);
+          const t = getId(l.target);
+          return s === d.id || t === d.id;
+        })
+        .classed('is-secondary', l => {
+          const s = getId(l.source);
+          const t = getId(l.target);
+          return (directNeighbors.has(s) && secondaryTechs.has(t)) ||
+                 (directNeighbors.has(t) && secondaryTechs.has(s));
+        })
+        .classed('is-dimmed', l => {
+          const s = getId(l.source);
+          const t = getId(l.target);
+          const isDirect = s === d.id || t === d.id;
+          const isSec = (directNeighbors.has(s) && secondaryTechs.has(t)) ||
+                        (directNeighbors.has(t) && secondaryTechs.has(s));
+          return !isDirect && !isSec;
+        });
+    })
+    .on('mouseout', () => {
+      nodeGroup
+        .classed('is-hovered', false)
+        .classed('is-neighbor', false)
+        .classed('is-secondary', false)
+        .classed('is-dimmed', false);
+
+      link
+        .classed('is-active', false)
+        .classed('is-secondary', false)
+        .classed('is-dimmed', false);
+    })
+    .on('click', (_, d) => {
+      const umami = (window as any).umami;
+
+      if (d.type === 'project' && d.url) {
+        umami?.track('grafo-clic-proyecto', { proyecto: d.label });
+        window.location.href = d.url;
+        return;
+      }
+
+      if (d.type === 'tech') {
+        umami?.track('grafo-clic-tecnologia', { tecnologia: d.label });
+        const panel = document.getElementById('tech-panel');
+        const titleEl = document.getElementById('panel-title');
+        const listEl = document.getElementById('panel-list');
+        if (!panel || !titleEl || !listEl) return;
+
+        const relatedProjects = data.links
+          .filter(l => getId(l.source) === d.id || getId(l.target) === d.id)
+          .map(l => {
+            const targetId = getId(l.source) === d.id ? getId(l.target) : getId(l.source);
+            return data.nodes.find(n => n.id === targetId);
+          })
+          .filter((n): n is GraphNode => Boolean(n && n.type === 'project'));
+
+        titleEl.textContent = `Proyectos con ${d.label}`;
+        listEl.innerHTML = relatedProjects
+          .map(
+            p => `
+            <li>
+              <a href="${p.url ?? '#'}">
+                <strong>${p.label}</strong>
+                <span>${p.tagline ?? ''}</span>
+              </a>
+            </li>`
+          )
+          .join('');
+
+        panel.hidden = false;
+      }
+    });
+
+    simulation.on('tick', () => {
+      data.nodes.forEach(d => {
+        d.x = clampX(d.x ?? width / 2);
+        d.y = clampY(d.y ?? height / 2);
+      });
+    
+    const panel = document.getElementById('tech-panel');
+    const closeBtn = document.getElementById('close-panel') || panel?.querySelector('button');
+
+    closeBtn?.addEventListener('click', () => {
+      if (panel) panel.hidden = true;
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && panel && !panel.hidden) {
+        panel.hidden = true;
+      }
+    });
+
+      link
+        .attr('x1', d => (d.source as GraphNode).x ?? 0)
+        .attr('y1', d => (d.source as GraphNode).y ?? 0)
+        .attr('x2', d => (d.target as GraphNode).x ?? 0)
+        .attr('y2', d => (d.target as GraphNode).y ?? 0);
+
+      nodeGroup.attr('transform', d => `translate(${d.x ?? 0},${d.y ?? 0})`);
+    });
+  }
+
+  initTechGraph();
+  document.addEventListener('astro:page-load', initTechGraph);
+</script>
+
+<style is:global>
+  #graph-container {
+    position: relative;
+    width: 100%;
+    background: rgba(15, 23, 42, 0.4);
+    border: 1px solid var(--border-color, #2a2f3a);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  #graph-container .graph-link {
+    stroke: #64748b;
+    stroke-opacity: 0.45;
+    stroke-width: 1.5px;
+    transition: stroke 0.2s ease, stroke-opacity 0.2s ease, stroke-width 0.2s ease;
+  }
+
+  #graph-container .graph-link.is-active {
+    stroke: #38bdf8;
+    stroke-opacity: 0.95;
+    stroke-width: 2.5px;
+  }
+
+  #graph-container .graph-link.is-secondary {
+    stroke: #94a3b8;
+    stroke-opacity: 0.35;
+    stroke-dasharray: 4 3;
+  }
+
+  #graph-container .graph-link.is-dimmed {
+    stroke-opacity: 0.06;
+  }
+
+  #graph-container .graph-node {
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+  }
+
+  #graph-container .graph-node circle {
+    transition: r 0.2s ease, fill 0.2s ease, stroke 0.2s ease, stroke-width 0.2s ease;
+  }
+
+  #graph-container .graph-node.tech circle {
+    fill: #2563eb;
+    stroke: #93c5fd;
+    stroke-width: 2px;
+  }
+
+  #graph-container .graph-node.project circle {
+    fill: #10b981;
+    stroke: #6ee7b7;
+    stroke-width: 2px;
+  }
+
+  #graph-container .graph-node.is-hovered circle {
+    r: 23;
+    stroke: #ffffff;
+    stroke-width: 3px;
+  }
+
+  #graph-container .graph-node.is-neighbor circle {
+    stroke: #38bdf8;
+    stroke-width: 3px;
+  }
+
+  #graph-container .graph-node.is-secondary {
+    opacity: 0.5;
+  }
+
+  #graph-container .graph-node.is-dimmed {
+    opacity: 0.12;
+  }
+
+  #graph-container .graph-node text {
+    font-size: 12px;
+    fill: var(--text-primary, #f8fafc);
+    pointer-events: none;
+    transition: font-weight 0.2s ease, fill 0.2s ease;
+  }
+
+  #graph-container .graph-node.is-hovered text,
+  #graph-container .graph-node.is-neighbor text {
+    font-weight: 700;
+    fill: #38bdf8;
+  }
+
+  #graph-container #tech-panel {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    width: 300px;
+    background: #0f172a;
+    color: #f8fafc;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    padding: 1rem;
+    z-index: 10;
+  }
+
+  #graph-container .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+  }
+
+  #graph-container #close-panel {
+    background: none;
+    border: none;
+    color: #94a3b8;
+    font-size: 1.25rem;
+    cursor: pointer;
+  }
+
+  #graph-container #panel-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  #graph-container #panel-list a {
+    display: flex;
+    flex-direction: column;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  #graph-container #panel-list a:hover strong {
+    color: #38bdf8;
+  }
+
+  #graph-container #panel-list span {
+    font-size: 0.8rem;
+    color: #94a3b8;
+  }
+</style>
