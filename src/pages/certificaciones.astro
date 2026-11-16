@@ -1,0 +1,217 @@
+---
+import BaseLayout from '../layout/BaseLayout.astro';
+import { certificates } from '../data/certificates';
+
+const baseUrl = import.meta.env.BASE_URL;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const list = Array.isArray(certificates) ? certificates : [];
+---
+
+<BaseLayout title="Certificaciones y Respaldos">
+  <section class="cert-header">
+    <h1>Certificaciones Técnicas</h1>
+    <p>Acreditaciones en diseño CAD, manufactura digital, electrónica, automatización y análisis de datos.</p>
+
+    <div class="filters" id="cert-filters">
+      <button type="button" class="filter-btn active" data-filter="all">Todas</button>
+      <button type="button" class="filter-btn" data-filter="cad-manufactura">CAD y Manufactura</button>
+      <button type="button" class="filter-btn" data-filter="electronica-iot">Electrónica e IoT</button>
+      <button type="button" class="filter-btn" data-filter="software-datos">Software y Datos</button>
+      <button type="button" class="filter-btn" data-filter="formacion-tecnica">Formación Técnica</button>
+    </div>
+  </section>
+
+  <section class="cert-grid" id="cert-grid">
+    {list.map((cert) => {
+      const filePath = `${base}/certificates/${cert.file}`;
+      return (
+        <article class="cert-card" data-area={cert.area}>
+          <div class="cert-preview">
+            {cert.type === 'image' ? (
+              <img src={filePath} alt={cert.title} loading="lazy" />
+            ) : (
+              <div class="pdf-badge">
+                <span>PDF</span>
+                <small>{cert.file}</small>
+              </div>
+            )}
+          </div>
+
+          <div class="cert-body">
+            <div class="cert-meta">
+              <span class="issuer">{cert.issuer}</span>
+              <span class="date">{cert.date}</span>
+            </div>
+            <h3>{cert.title}</h3>
+            {cert.credentialId && <p class="cred-id">ID: {cert.credentialId}</p>}
+
+            <a
+              href={filePath}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="btn-view"
+              data-umami-event="ver-certificado"
+              data-umami-event-titulo={cert.title}
+            >
+              {cert.type === 'pdf' ? 'Abrir Documento PDF' : 'Ver Imagen Completa'}
+            </a>
+          </div>
+        </article>
+      );
+    })}
+  </section>
+</BaseLayout>
+
+<script>
+  const buttons = document.querySelectorAll<HTMLButtonElement>('.filter-btn');
+  const cards = document.querySelectorAll<HTMLElement>('.cert-card');
+
+  buttons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      buttons.forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      const filter = btn.dataset.filter;
+      cards.forEach((card) => {
+        if (filter === 'all' || card.dataset.area === filter) {
+          card.style.display = 'flex';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    });
+  });
+</script>
+
+<style>
+  .cert-header {
+    padding: 2rem 0;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 2.5rem;
+  }
+  .cert-header h1 {
+    font-size: 2.2rem;
+    margin-bottom: 0.5rem;
+  }
+  .cert-header p {
+    color: var(--text-secondary);
+    margin-bottom: 1.5rem;
+  }
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .filter-btn {
+    background: var(--surface-color);
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
+    padding: 0.45rem 0.9rem;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.2s ease;
+  }
+  .filter-btn:hover,
+  .filter-btn.active {
+    border-color: var(--accent);
+    color: var(--text-primary);
+    background: rgba(56, 189, 248, 0.12);
+  }
+  .cert-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+    gap: 1.5rem;
+  }
+  .cert-card {
+    background: var(--surface-color);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .cert-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--accent);
+  }
+  .cert-preview {
+    height: 160px;
+    background: rgba(15, 23, 42, 0.6);
+    border-bottom: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .cert-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .pdf-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.4rem;
+    color: var(--accent);
+  }
+  .pdf-badge span {
+    font-weight: 700;
+    font-size: 1.25rem;
+    padding: 0.35rem 0.8rem;
+    border: 1px solid var(--accent);
+    border-radius: 4px;
+  }
+  .pdf-badge small {
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .cert-body {
+    padding: 1.25rem;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+  }
+  .cert-meta {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    margin-bottom: 0.5rem;
+  }
+  .issuer {
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .date, .cred-id {
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+  }
+  .cert-body h3 {
+    font-size: 1.1rem;
+    margin-bottom: 0.75rem;
+  }
+  .btn-view {
+    margin-top: auto;
+    display: inline-block;
+    text-align: center;
+    text-decoration: none;
+    background: rgba(56, 189, 248, 0.12);
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: background 0.2s, color 0.2s;
+  }
+  .btn-view:hover {
+    background: var(--accent);
+    color: var(--surface-color);
+  }
+</style>
